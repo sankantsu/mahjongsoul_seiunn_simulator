@@ -4,6 +4,13 @@
 
 デッキ構成やステージ数を入力することで、(最も良い) 牌のスコアや最終火力をシミュレーションすることができます。
 
+## ローカル実行方法
+
+```
+$ pip install -r requirements.txt
+$ streamlit run app.py
+```
+
 ## 技術構成
 
 [Streamlit](https://streamlit.io/) を使っています。
