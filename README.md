@@ -4,6 +4,10 @@
 
 デッキ構成やステージ数を入力することで、(最も良い) 牌のスコアや最終火力をシミュレーションすることができます。
 
+Streamlit Community Cloud 上にデプロイしてあり、以下の URL から使用できます。
+
+https://mahjongsoulseiunnsimulator-ez4rq9w2guoshjdepgbgds.streamlit.app/
+
 ## ローカル実行方法
 
 ```
