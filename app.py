@@ -208,7 +208,18 @@ def main():
             "初期スコア": [initial_score] * MahjongConstants.NUM_SUUPAI,
         }
     )
-    st.data_editor(df_initial_scores, hide_index=True)
+
+    if "df_initial_scores" not in st.session_state:
+        st.session_state["df_initial_scores"] = df_initial_scores
+
+    with st.form("set_all_initial_scores"):
+        new_initial_score = st.number_input("牌スコアの初期値", value=10**6)
+        set_all = st.form_submit_button("まとめて設定する")
+
+    if set_all:
+        st.session_state["df_initial_scores"]["初期スコア"] = [new_initial_score] * MahjongConstants.NUM_SUUPAI
+
+    st.data_editor(st.session_state["df_initial_scores"], hide_index=True)
 
     # Ex 道中で使うデッキ構成にゃ
     n_haruna = st.number_input(
@@ -249,7 +260,7 @@ def main():
     st.write(f"1 ターンあたりの平均成長率: {avg_enhance_ratio}")
 
     # シミュレーション実行にゃ
-    initial_scores = list(df_initial_scores["初期スコア"])
+    initial_scores = list(st.session_state["df_initial_scores"]["初期スコア"])
     simulator = MaxScoreSimulator(
         initial_scores=initial_scores,
         n_stage=n_stage,
