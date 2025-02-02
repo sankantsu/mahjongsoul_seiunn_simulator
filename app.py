@@ -67,7 +67,7 @@ class SeiunnSimulationParams:
     def max_power(self) -> float:
         power_beans = SeiunnConstants.BEAN_POWER**self.n_beans
         power_weight = (
-            SeiunnConstants.WEIGHT_MAX_POWER
+            SeiunnConstants.WEIGHT_MAX_POWER**self.n_weight
         )  # とりあえずカンスト前提にするにゃ
         return power_beans * power_weight * self.other_power
 
@@ -217,7 +217,9 @@ def main():
         set_all = st.form_submit_button("まとめて設定する")
 
     if set_all:
-        st.session_state["df_initial_scores"]["初期スコア"] = [new_initial_score] * MahjongConstants.NUM_SUUPAI
+        st.session_state["df_initial_scores"]["初期スコア"] = [
+            new_initial_score
+        ] * MahjongConstants.NUM_SUUPAI
 
     st.data_editor(st.session_state["df_initial_scores"], hide_index=True)
 
