@@ -14,12 +14,20 @@ class MahjongConstants:
 
 
 class SeiunnConstants:
+    # 豆にゃ
     BEAN_N_SELECT_PAI = 2
     BEAN_ENHANCE_RATIO = 1.5
-    HIBIKI_ENHANCE_RATIO = 2.5
-    WEIGHT_ENHANCE_RATIO = 1.8
-
     BEAN_POWER = 5
+
+    # ブラックホールにゃ
+    BLACKHOLE_N_SELECT_PAI = 2
+    BLACKHOLE_ENHANCE_RATIO = 1.1
+
+    # 響にゃ
+    HIBIKI_ENHANCE_RATIO = 2.5
+
+    # ウェイトにゃ
+    WEIGHT_ENHANCE_RATIO = 1.8
     WEIGHT_MAX_POWER = float(2**53 - 1)
 
 
@@ -39,11 +47,16 @@ class SeiunnSimulationParams:
     n_hibiki: int
     n_beans: int
     n_weight: int
+    n_blackhole: int
+    n_agari_avg: int  # ブラックホール用にゃ
     other_power: float = 1.0  # 花火等によるその他の倍率にゃ
 
     def bean_triggered_per_stage(self) -> int:
         n_enhance_per_bean = 1 + self.n_haruna
         return n_enhance_per_bean * self.n_beans
+
+    def blackhole_triggered_per_stage(self) -> int:
+        return self.n_agari_avg * self.n_blackhole
 
     def hibiki_enhance_ratio(self) -> float:
         return 1 + self.n_hibiki * (SeiunnConstants.HIBIKI_ENHANCE_RATIO - 1)
@@ -53,15 +66,26 @@ class SeiunnSimulationParams:
             1 + (SeiunnConstants.BEAN_ENHANCE_RATIO - 1) * self.hibiki_enhance_ratio()
         )
 
+    def blackhole_enhance_ratio(self) -> float:
+        return (
+            1 + (SeiunnConstants.BLACKHOLE_ENHANCE_RATIO - 1) * self.hibiki_enhance_ratio()
+        )
+
     def average_enhance_ratio_per_stage(self) -> float:
-        n_avg_pai_enhance = (
+        beans_n_avg_pai_enhance = (
             SeiunnConstants.BEAN_N_SELECT_PAI
             * self.bean_triggered_per_stage()
             / MahjongConstants.NUM_SUUPAI
         )
-        r_beans = self.bean_enhance_ratio() ** n_avg_pai_enhance
+        blackhole_n_avg_pai_enhance = (
+            SeiunnConstants.BEAN_N_SELECT_PAI
+            * self.blackhole_triggered_per_stage()
+            / MahjongConstants.NUM_SUUPAI
+        )
+        r_beans = self.bean_enhance_ratio() ** beans_n_avg_pai_enhance
+        r_blackhole = self.blackhole_enhance_ratio() ** blackhole_n_avg_pai_enhance
         r_weight = SeiunnConstants.WEIGHT_ENHANCE_RATIO**self.n_weight
-        return r_beans * r_weight
+        return r_beans * r_blackhole * r_weight
 
     # 1 ターンのスコアにかかる最大倍率にゃ
     def max_power(self) -> float:
@@ -77,19 +101,30 @@ class SeiunnSimulator:
     # 初期化にゃ
     def __init__(self, params: SeiunnSimulationParams) -> None:
         self._params = params
-        self._enhance_counts = [0] * MahjongConstants.NUM_SUUPAI
+        self._beans_enhance_counts = [0] * MahjongConstants.NUM_SUUPAI
+        self._blackhole_enhance_counts = [0] * MahjongConstants.NUM_SUUPAI
 
     @property
-    def enhance_counts(self) -> list[int]:
-        return self._enhance_counts
+    def beans_enhance_counts(self) -> list[int]:
+        return self._beans_enhance_counts
+
+    @property
+    def blackhole_enhance_counts(self) -> list[int]:
+        return self._blackhole_enhance_counts
 
     # 1 ステージぶんの強化抽選を行うにゃ
     def simulate_stage(self) -> None:
-        n_enhance_per_stage = self._params.bean_triggered_per_stage()
-        for i in range(n_enhance_per_stage):
+        beans_n_enhance_per_stage = self._params.bean_triggered_per_stage()
+        for i in range(beans_n_enhance_per_stage):
             i, j = select_two()
-            self._enhance_counts[i] += 1
-            self._enhance_counts[j] += 1
+            self._beans_enhance_counts[i] += 1
+            self._beans_enhance_counts[j] += 1
+
+        blackhole_n_enhance_per_stage = self._params.blackhole_triggered_per_stage()
+        for i in range(blackhole_n_enhance_per_stage):
+            i, j = select_two()
+            self._blackhole_enhance_counts[i] += 1
+            self._blackhole_enhance_counts[j] += 1
 
     # n_stage ステージ分のシミュレーションにゃ
     def run(self, n_stage: int) -> None:
@@ -124,13 +159,17 @@ class MaxScoreSimulator:
             seiunn_sim.run(self._n_stage)
 
             # 牌スコア計算にゃ
-            enhance_counts = seiunn_sim.enhance_counts
+            beans_enhance_counts = seiunn_sim.beans_enhance_counts
+            blackhole_enhance_counts = seiunn_sim.blackhole_enhance_counts
             scores = self._initial_scores.copy()
-            assert len(self._initial_scores) == len(enhance_counts)
+            assert len(self._initial_scores) == len(beans_enhance_counts)
+            assert len(self._initial_scores) == len(blackhole_enhance_counts)
 
             for i in range(len(self._initial_scores)):
-                ratio = self._seiunn_params.bean_enhance_ratio()
-                scores[i] *= ratio ** enhance_counts[i]
+                r_beans = self._seiunn_params.bean_enhance_ratio()
+                r_blackhole = self._seiunn_params.blackhole_enhance_ratio()
+                scores[i] *= r_beans ** beans_enhance_counts[i]
+                scores[i] *= r_blackhole ** blackhole_enhance_counts[i]
 
             # 最大スコアだけ使うにゃ
             max_score = max(scores)
@@ -196,6 +235,8 @@ def main():
     ### 初期スコア
 
     デッキ完成時点など、初期値となる時点での牌のスコアを入力するにゃ
+
+    ブラックホールを使うときは平均ソウズ和了回数も合わせて入力するにゃ
     """)
 
     # 牌スコアの初期値にゃ
@@ -233,8 +274,14 @@ def main():
     n_beans = st.number_input(
         "豆(木)+ の数", value=5, min_value=0, max_value=8, key="beans"
     )
+    n_blackhole = st.number_input(
+        "ブラックホール+ の数", value=0, min_value=0, max_value=8, key="blackhole"
+    )
     n_weight = st.number_input(
         "ウェイト+ の数", value=1, min_value=0, max_value=8, key="weight"
+    )
+    n_agari_avg = st.number_input(
+        "ステージあたりのソウズ和了回数", value=1, min_value=0, max_value=36, key="agari_avg"
     )
 
     # シミュレーションのステージ数や試行回数にゃ
@@ -254,7 +301,9 @@ def main():
         n_haruna=n_haruna,
         n_hibiki=n_hibiki,
         n_beans=n_beans,
+        n_blackhole=n_blackhole,
         n_weight=n_weight,
+        n_agari_avg=n_agari_avg,
     )
 
     # 1 ターンあたりの平均的な成長率目安にゃ
@@ -320,8 +369,10 @@ def main():
         n_haruna=n_haruna_final,
         n_hibiki=n_hibiki_final,
         n_beans=n_beans_final,
+        n_blackhole=0,
         n_weight=n_weight_final,
         other_power=other_power,  # 花火とか、豆ウェイト以外の火力にゃ
+        n_agari_avg=1,
     )
     # 1 番高い牌を 1 枚つかった和了のスコアにゃ
     powers = final_seiunn_params.max_power() * n_fan * max_scores
